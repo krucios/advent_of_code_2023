@@ -17,7 +17,7 @@
 
 using namespace std;
 
-pair<size_t, size_t> components(const vector<vector<size_t>>& E) {
+vector<bool> components(const vector<vector<size_t>>& E) {
     vector<bool> visited;
     visited.resize(E.size(), false);
 
@@ -37,9 +37,7 @@ pair<size_t, size_t> components(const vector<vector<size_t>>& E) {
         }
     }
 
-    size_t connected = count(visited.begin(), visited.end(), true);
-
-    return make_pair(connected, visited.size() - connected);
+    return visited;
 }
 
 size_t bfs(size_t src, size_t dst, vector<size_t>& path, const vector<vector<size_t>>& C) {
@@ -72,7 +70,9 @@ size_t bfs(size_t src, size_t dst, vector<size_t>& path, const vector<vector<siz
     return 0;
 }
 
-size_t max_flow(size_t src, size_t dst, vector<vector<size_t>> C) {
+vector<pair<size_t, size_t>> max_flow(size_t src, size_t dst, vector<vector<size_t>> C) {
+    vector<pair<size_t, size_t>> min_cut;
+
     size_t flow = 0;
     vector<size_t> path(C.size());
     size_t additional_flow;
@@ -85,25 +85,38 @@ size_t max_flow(size_t src, size_t dst, vector<vector<size_t>> C) {
         while (cur != src) {
             size_t prev = path[cur];
             C[prev][cur] -= additional_flow;
-            C[cur][prev] += additional_flow;
+            C[cur][prev] -= additional_flow;
+
+            if (C[prev][cur] == 0) {
+                min_cut.push_back({prev, cur});
+            }
 
             cur = prev;
         }
     }
 
-    return flow;
+    vector<bool> c = components(C);
+    erase_if(min_cut, [&](const auto& e) {
+        return c[e.first] == c[e.second];
+    });
+
+    return min_cut;
 }
 
-size_t min_max_flow(const vector<vector<size_t>>& C) {
-    size_t ans = INT32_MAX;
+vector<pair<size_t, size_t>> min_cut(const vector<vector<size_t>>& C) {
+    vector<pair<size_t, size_t>> edges;
+    size_t min_cut_size = INT32_MAX;
 
     for (int i = 0; i < C.size() - 1; i++) {
         for (int j = i + 1; j < C.size(); j++) {
-            ans = min(ans, max_flow(i, j, C));
+            auto min_cut = max_flow(i, j, C);
+            if (min_cut.size() == 3) {
+                return min_cut;
+            }
         }
     }
 
-    return ans;
+    return edges;
 }
 
 int main() {
@@ -168,42 +181,16 @@ int main() {
         }
     }
 
-    size_t base_connectivity = min_max_flow(E);
+    auto edges = min_cut(E);
 
-    size_t s = 0;
-    size_t t = 1;
-    for (; t < N; t++) {
-        if (max_flow(s, t, E) == base_connectivity) {
-            break;
-        }
-    }
-
-    vector<pair<size_t, size_t>> edges;
-    for (int i = 0; i < N - 1; i++) {
-        for (int j = i + 1; j < N; j++) {
-            if (E[i][j]) {
-                E[i][j] = 0;
-                E[j][i] = 0;
-
-                size_t connectivity_lvl = max_flow(s, t, E);
-                if (connectivity_lvl < base_connectivity) {
-                    edges.push_back({i, j});
-                }
-
-                E[i][j] = 1;
-                E[j][i] = 1;
-            }
-        }
-    }
-
-    assert(edges.size() == 3);
     for (auto e : edges) {
         E[e.first][e.second] = 0;
         E[e.second][e.first] = 0;
     }
 
     auto cc = components(E);
-    cout << cc.first << " " << cc.second << endl;
+    cout << count(cc.begin(), cc.end(), false) << " * " << count(cc.begin(), cc.end(), true) << " = "
+         << count(cc.begin(), cc.end(), false) * count(cc.begin(), cc.end(), true) << endl;
 
     return 0;
 }
